@@ -1,0 +1,55 @@
+
+name: Build PandaOS APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download project
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
+
+      - name: Extract PandaOS
+        run: |
+          mkdir -p _src
+          unzip -q PandaOS.zip -d _src
+          DIR=$(dirname "$(find _src -name settings.gradle.kts | head -n 1)")
+          echo "PROJECT_DIR=$DIR" >> "$GITHUB_ENV"
+
+      - name: Build APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Prepare APK
+        run: cp "$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk" PandaOS.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PandaOS-debug-apk
+          path: PandaOS.apk
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: PandaOS build ${{ github.run_number }}
+          files: PandaOS.apk
